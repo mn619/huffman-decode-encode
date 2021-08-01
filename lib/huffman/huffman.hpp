@@ -38,7 +38,7 @@ namespace Huffman{
     };
 
     struct header {
-        char magic[4] = {'v', '6', '9'};
+        char magic[4] = {'V', '6', '9', 'F'};
         uint32_t htoff;
         uint32_t csoff;
         uint32_t data_off;
