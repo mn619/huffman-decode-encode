@@ -40,14 +40,13 @@ namespace Huffman{
     struct header {
         char magic[4] = {'v', '6', '9'};
         uint32_t htoff;
-        uint8_t htentsize;
-        uint16_t htentcnt;
         uint32_t csoff;
         uint32_t data_off;
     };
 
     struct huff_table_entry{
-        uint8_t val;
+        huff_table_entry (): len(0) {};
+
         uint8_t len;
     };
 
@@ -61,14 +60,13 @@ namespace Huffman{
             Encoder():  cnt         (std::vector<uint32_t>(1<<8, 0)),
                         buffer      (nullptr),
                         codes       (std::vector<std::string>(1<<8, "")) {};
+                        
             std::ifstream in_file;
             std::ofstream out_file;
             char * buffer;
             uint32_t filesz;
             std::vector <std::string> codes;
-            std::vector<huff_table_entry> ht;
             int compress(char * file_path);
-            
     };
 
 
@@ -77,6 +75,9 @@ namespace Huffman{
             std::vector<huff_table_entry> ht;
             std::map<std::string, uint8_t> m;
         public:
+            Decoder():  buffer      (nullptr),
+                        ht          (std::vector<huff_table_entry>(1<<8)) {};
+
             char * buffer;
             uint32_t filesz;
             std::ifstream in_file;

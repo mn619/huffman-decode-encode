@@ -114,34 +114,20 @@ int     Huffman::Encoder::compress(char *  file_path){
     // Write header
 
     hdr.htoff = sizeof(header);
-    hdr.htentsize = sizeof(huff_table_entry);
 
-    hdr.htentcnt = 0;
-    for (int i = 0; i < (1<<8); i++) {
-        if (codes[i].size() == 0) 
-            continue;
-        hdr.htentcnt++;
-    }
-
-    hdr.csoff = sizeof(header) + hdr.htentsize*hdr.htentcnt;
+    hdr.csoff = sizeof(header) + sizeof(huff_table_entry)*(1<<8);
 
     uint32_t code_string_size_bit = 0;
     for(int i = 0; i < (1<<8); i++)
         code_string_size_bit += codes[i].size();
     
-    hdr.data_off = sizeof(header) + hdr.htentsize*hdr.htentcnt + (code_string_size_bit + 7)/8;
+    hdr.data_off = hdr.csoff + (code_string_size_bit + 7)/8;
 
     out_file.write((char *)&hdr, sizeof(header));
 
     // Write huffman table entries
     for (int i = 0; i < (1<<8); i++) {
-        if (codes[i].size() == 0) {
-            continue;
-        }
-
-        htent.val = i;
         htent.len = codes[i].size();
-
         out_file.write((char *)&htent, sizeof(huff_table_entry));
     }
 
@@ -235,11 +221,11 @@ int     Huffman::Decoder::decode(char   * file_path){
         return 1;
     }
     
-    for (int i = 0; i < hdr.htentcnt; i++) {
+    for (int i = 0; i < (1<<8); i++) {
         in_file.seekg(hdr.htoff + i*sizeof(huff_table_entry));
         in_file.read((char *)&htent, sizeof(huff_table_entry));
 
-        ht.push_back(htent);
+        ht[i] = htent;
     }
 
     // read code strings
@@ -260,7 +246,7 @@ int     Huffman::Decoder::decode(char   * file_path){
             }
 
             if(tmpstr.size() == ht[htind].len) {
-                m[tmpstr] = ht[htind].val;
+                m[tmpstr] = htind;
                 htind++;
                 tmpstr = "";
             }
