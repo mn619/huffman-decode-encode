@@ -157,6 +157,7 @@ int     Huffman::Encoder::compress(char *  file_path){
         out_file.write((char *)&byte, 1);
     }
 
+    bitcnt = 0;
     for (size_t i = 0; i < filesz; i++) {
         // Update progress bar at every 500KB
         if(i%(1024*512) == 0) {
@@ -200,13 +201,17 @@ int     Huffman::Decoder::decode(char   * file_path){
 
     out_file.open(out_file_name, std::ios::out | std::ios::binary);
 
-    header hdr;
     huff_table_entry htent;
-    uint32_t cssize;
-    std::string tmpstr = "";
     uint8_t byte;
-    uint32_t datasz;
     progress pgr;
+
+    node *  cur;
+    uint32_t cur_len = 0;
+
+    int htind = 0;
+
+    root = new node;
+    cur = root;
 
     in_file.seekg(0, std::ios::end);
 	filesz = in_file.tellg();
@@ -216,8 +221,10 @@ int     Huffman::Decoder::decode(char   * file_path){
 
     datasz = filesz - hdr.data_off;
 
-    if (0 != strcmp(hdr.magic, "v69")) {
+    if (0 != memcmp((char *)&hdr.magic, "V69F", 4)) {
         printf("Wrong magic bytes. probably wrong file.\n");
+
+        clean();
         return 1;
     }
     
@@ -229,38 +236,62 @@ int     Huffman::Decoder::decode(char   * file_path){
     }
 
     // read code strings
+    free(buffer);
     in_file.seekg(hdr.csoff);
     cssize = hdr.data_off - hdr.csoff;
     buffer = (char *)malloc(cssize);
     in_file.read(buffer, cssize);
 
     // create map
-    for(int i = 0, htind = 0; i < cssize; i++) {
+    while(ht[htind].len == 0 && htind < (1<<8)) htind++;
+
+    if (htind == (1<<8)) {
+        printf("No encoded bytes found\n");
+        clean();
+        return 1;
+    }
+
+    for(int i = 0, bits = 0; i < cssize; i++) {
         byte = (uint8_t)buffer[i];
         for(int j = 7; j >= 0; j--) {
             if(byte>>j&1) {
-                tmpstr += '1';
+                if (nullptr == cur->rnode) 
+                    cur->rnode = new node;
+                cur = cur->rnode;
+                cur_len++;
             }
             else {
-                tmpstr += '0';
+                if (nullptr == cur->lnode) 
+                    cur->lnode = new node;
+                cur = cur->lnode;
+                cur_len++;
             }
 
-            if(tmpstr.size() == ht[htind].len) {
-                m[tmpstr] = htind;
+            if(cur_len == ht[htind].len) {
+                assert(cur->val == (uint32_t)-1);
+                cur->val = htind;
                 htind++;
-                tmpstr = "";
+                cur_len = 0;
+                cur = root;
+                while(ht[htind].len == 0 && htind < (1<<8)) htind++;
+            }
+
+            if (htind == (1<<8)) {
+                break;
             }
         }
 
-        if(htind >= ht.size()) {
+        if (htind == (1<<8)) {
             break;
         }
     }
 
+    cur = root;
+
     free(buffer);
     buffer = (char *) malloc(datasz);
+    in_file.seekg(hdr.data_off);
     in_file.read(buffer, datasz);
-    tmpstr = "";
 
     for (int i = 0; i < datasz; i++) {
         // Update progress bar at 500KB
@@ -268,30 +299,34 @@ int     Huffman::Decoder::decode(char   * file_path){
             pgr.update_bar(i, datasz);
         }
 
-        byte = buffer[i];
+        byte = static_cast<uint8_t>(buffer[i]);
         for(int j = 7; j >= 0; j--) {
             if(byte>>j&1) {
-                tmpstr += '1';
+                if (nullptr == cur->rnode) {
+                    printf("%d Data not encoded correctly\n", i);
+                    clean();
+                    return 1;
+                }
+                cur = cur->rnode;
             }
             else {
-                tmpstr += '0';
+                if (nullptr == cur->lnode) {
+                    printf("%d Data not encoded correctly\n", i);
+                    clean();
+                    return 1;
+                }
+                cur = cur->lnode;
             }
 
-            if(m.count(tmpstr)) {
-                byte = m[tmpstr];
-                out_file.write((char *)&byte, 1);
-                tmpstr = "";
+            if (nullptr == cur->lnode && nullptr == cur->rnode) {
+                uint8_t val = static_cast<uint8_t>(cur->val);
+                out_file.write((char *)&val, 1);
+                cur = root;
             }
         }
     }
 
-    if(0 != strcmp(tmpstr.c_str(), "")) {
-        printf("Unable to decode\n");
-        return 1;
-    }
-
-    in_file.close();
-    out_file.close();
-    free(buffer);
+    clean();
     return 0;
+
 };

@@ -73,16 +73,24 @@ namespace Huffman{
     class Decoder{
         private:
             std::vector<huff_table_entry> ht;
-            std::map<std::string, uint8_t> m;
+            node * root;
         public:
             Decoder():  buffer      (nullptr),
                         ht          (std::vector<huff_table_entry>(1<<8)) {};
 
             char * buffer;
-            uint32_t filesz;
+            header hdr;
+            uint32_t cssize, datasz, filesz;
             std::ifstream in_file;
             std::ofstream out_file;
             int decode(char * file_path);
+
+            void clean(){
+                in_file.close();
+                out_file.close();
+                free(buffer);
+                return;
+            }
     };
 }
 
